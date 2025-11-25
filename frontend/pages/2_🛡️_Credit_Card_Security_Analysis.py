@@ -1,8 +1,49 @@
 import streamlit as st
 import requests
+from requests.exceptions import RequestException, Timeout
 
+# ---------------------------------------------------
+# PAGE CONFIG
+# ---------------------------------------------------
 st.set_page_config(page_title="Credit Card Security Analysis", page_icon="🛡️")
 
+# ---------------------------------------------------
+# BACKEND CONNECTION HELPER
+# ---------------------------------------------------
+# Use Streamlit secrets (set BACKEND_URL in Streamlit Cloud -> Settings -> Secrets)
+BACKEND_URL = st.secrets.get("BACKEND_URL", "https://portfolio-i8re.onrender.com")
+
+def call_api(path: str, method="get", json=None, timeout=15):
+    """
+    Safe wrapper for backend communication.
+    Returns (result_json, error_message)
+    """
+    url = BACKEND_URL.rstrip("/") + path
+    try:
+        if method.lower() == "get":
+            r = requests.get(url, timeout=timeout)
+        elif method.lower() == "post":
+            r = requests.post(url, json=json, timeout=timeout)
+        else:
+            return None, "Invalid HTTP method"
+
+        r.raise_for_status()
+        return r.json(), None
+
+    except Timeout:
+        return None, "⏳ Request timed out."
+
+    except RequestException as e:
+        # network / HTTP / connection failures
+        return None, f"🔌 Network error: {e}"
+
+    except Exception as e:
+        return None, f"⚠️ Unexpected error: {e}"
+
+
+# ---------------------------------------------------
+# PAGE CONTENT
+# ---------------------------------------------------
 st.title("🛡️ Credit Card Security Analysis")
 st.markdown("## Case Study")
 
@@ -23,7 +64,6 @@ I managed the full lifecycle from ETL to Visualization, focusing on overcoming c
 * **Handling Imbalance (SMOTE):** I used **Synthetic Minority Over-sampling Technique (SMOTE)**. Instead of simply duplicating fraud records, SMOTE mathematically generates new, synthetic examples of fraud to train the model effectively.
 * **Model Selection:** I benchmarked Logistic Regression (Baseline) against Random Forest and XGBoost. I optimized for **AUC-ROC and F1-Score** rather than simple accuracy, as these are the true measures of success in imbalance problems.
 """)
-
 
 # --- The Results ---
 st.markdown("### 🚀 The Results")
@@ -57,31 +97,46 @@ loc_map = {
 }
 lat, long = loc_map[location]
 
+# Debug: (developer note) path to last uploaded screenshot in this session
+# Use this local path as a reference URL if needed:
+SCREENSHOT_PATH = "/mnt/data/7a611118-44f9-4d3d-b8c1-aaaa0f11c857.png"
+# (Displayed only as text so you can copy it into docs or repo if required)
+st.caption(f"Debug screenshot (local path): {SCREENSHOT_PATH}")
+
 if st.button("🔍 Analyze Transaction"):
-    api_url = "http://127.0.0.1:8000/predict/fraud" # Change to Render URL later
-    
+    # Build minimal payload to match FastAPI's expected schema
     payload = {
-        "amount": amount,
-        "lat": lat,
-        "long": long,
-        "use_chip": method,
-        "merchant_city": "Unknown"
+        "amount": float(amount),
+        "lat": float(lat),
+        "long": float(long),
+        "use_chip": method  # backend expects "Swipe" or "Online"
     }
-    
+
     with st.spinner("Scanning for anomalies..."):
-        try:
-            res = requests.post(api_url, json=payload).json()
-            
-            prob = res['fraud_probability']
-            
-            if res['is_fraud']:
-                st.error(f"🚨 FRAUD DETECTED! Risk Score: {prob:.2%}")
-                st.write(f"Reason: High-value transaction in unusual cluster.")
+        result, err = call_api("/predict/fraud", method="post", json=payload)
+
+        if err:
+            st.error(f"Connection Error. Is the backend running? {err}")
+        else:
+            # parse response
+            prob = result.get("fraud_probability")
+            is_fraud = result.get("is_fraud", False)
+
+            if prob is None:
+                st.error("Unexpected response from backend.")
             else:
-                st.success(f"✅ Transaction Safe. Risk Score: {prob:.2%}")
-                
-        except:
-            st.error("Connection Error. Is the backend running?")
+                # display nicely
+                pct = prob * 100
+                if is_fraud:
+                    st.error(f"🚨 FRAUD DETECTED! Risk Score: {pct:.2f}%")
+                    # optionally show notes if backend sends any
+                    if result.get("notes"):
+                        st.json(result.get("notes"))
+                else:
+                    st.success(f"✅ Transaction Safe. Risk Score: {pct:.2f}%")
+                    if result.get("notes"):
+                        st.info("Backend notes:")
+                        st.json(result.get("notes"))
 
 # --- Sidebar ---
 with st.sidebar:

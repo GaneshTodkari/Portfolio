@@ -1,7 +1,7 @@
 import streamlit as st
 import os
 
-st.set_page_config(page_title="Fraud Analysis Dashboard", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Insurance Fraud Claim Analysis Dashboard", page_icon="📊", layout="wide")
 
 st.title("📊 Insurance Fraud Claim Analysis")
 st.markdown("""
