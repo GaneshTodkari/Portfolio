@@ -1,3 +1,4 @@
+# frontend/Home.py
 import streamlit as st
 import requests
 import os
@@ -12,8 +13,11 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- BACKEND URL (from Streamlit secrets) ---
+# Make sure you set this in Streamlit Cloud: BACKEND_URL = "https://portfolio-i8re.onrender.com"
+BACKEND_URL = st.secrets.get("BACKEND_URL", "https://portfolio-i8re.onrender.com")
+
 # --- PATH SETUP ---
-# Ensure these paths exist in your project folder
 current_dir = Path(__file__).resolve().parent
 resume_path = current_dir / "assets" / "resume.pdf"
 profile_pic_path = current_dir / "assets" / "profile.png"
@@ -28,15 +32,13 @@ st.markdown("""
         --primary-blue: #1f77b4;
         --secondary-blue: #4a90e2;
         --dark-blue: #0f4c75;
-        /* --light-blue: #f0f7fd; Removed as it's no longer used in heavy boxes */
         --text-dark: #2c3e50;
-        --text-medium: #546e7a; /* A nice readable dark gray for secondary text */
+        --text-medium: #546e7a;
         --background-white: #ffffff;
         --card-shadow: 0 2px 8px rgba(0,0,0,0.05);
         --hover-shadow: 0 8px 16px rgba(31, 119, 180, 0.15);
     }
 
-    /* BASE TYPOGRAPHY & THEME FORCING (Keeps light mode consistent) */
     [data-testid="stAppViewContainer"] {
         background-color: #f8f9fa;
         color: var(--text-dark);
@@ -48,13 +50,10 @@ st.markdown("""
         border-right: 1px solid #e1e8ed;
     }
 
-    /* --- FIX 1: IMPROVE SIDEBAR NAV CONTRAST --- */
-    /* Target inactive sidebar links to make them darker and readable */
     [data-testid="stSidebarNav"] a {
         color: var(--text-medium) !important;
         font-weight: 500;
     }
-    /* Ensure active link is highlighted correctly */
     [data-testid="stSidebarNav"] a[aria-current="page"] {
         color: var(--primary-blue) !important;
         font-weight: 700;
@@ -70,18 +69,14 @@ st.markdown("""
         color: var(--text-medium);
     }
 
-    /* COMPONENTS */
-    
-    /* --- FIX 2: CLEANER HERO HEADER DESIGN --- */
-    /* Removed heavy background box and borders for a typographic approach */
     .hero-header-container {
         padding: 1rem 0 2rem 0;
         margin-bottom: 1rem;
     }
 
     .main-header {
-        font-size: 3.5rem; /* Increased size for impact */
-        font-weight: 800; /* Heavier weight */
+        font-size: 3.5rem;
+        font-weight: 800;
         color: var(--dark-blue);
         margin-bottom: 1rem;
         line-height: 1.1;
@@ -95,7 +90,6 @@ st.markdown("""
         border-bottom: 2px solid #e1e8ed;
     }
     
-    /* Force rounded sidebar image */
     [data-testid="stSidebar"] img {
         border-radius: 50%;
         object-fit: cover;
@@ -103,7 +97,6 @@ st.markdown("""
         padding: 3px;
     }
 
-    /* Project Cards */
     .project-card {
         background: var(--background-white);
         padding: 1.8rem;
@@ -123,7 +116,6 @@ st.markdown("""
         border-color: var(--secondary-blue);
     }
     
-    /* Skill Tags */
     .skill-tag {
         background: #ffffff;
         color: var(--primary-blue);
@@ -145,7 +137,6 @@ st.markdown("""
         margin: 1rem 0;
     }
 
-    /* TABS Styling */
     .stTabs [data-baseweb="tab-list"] {
         gap: 0.5rem;
         background-color: transparent;
@@ -162,19 +153,16 @@ st.markdown("""
         transition: all 0.2s;
     }
     
-    /* --- FIX 3: ACTIVE TAB CONTRAST --- */
-    /* Force text and icons inside the active tab to be white */
     .stTabs [aria-selected="true"],
     .stTabs [aria-selected="true"] p,
     .stTabs [aria-selected="true"] svg {
         background-color: var(--primary-blue) !important;
         color: #ffffff !important;
-        fill: #ffffff !important; /* For SVG icons if present */
+        fill: #ffffff !important;
         border: none;
         box-shadow: 0 4px 6px rgba(31, 119, 180, 0.2);
     }
     
-    /* Buttons */
     .stButton button {
         width: 100%;
         border-radius: 8px;
@@ -191,12 +179,10 @@ st.markdown("""
 with st.sidebar:
     st.write("") # Top spacing
     if profile_pic_path.exists():
-        # Using columns to center the image perfectly
         col1, col2, col3 = st.columns([0.5, 2, 0.5])
         with col2:
             st.image(str(profile_pic_path), width=180)
     else:
-        # Fallback placeholder
         st.markdown(
             """
             <div style='width: 160px; height: 160px; border-radius: 50%; background: linear-gradient(135deg, var(--primary-blue), var(--secondary-blue));
@@ -207,7 +193,6 @@ with st.sidebar:
             unsafe_allow_html=True
         )
 
-    # Name and Title
     st.markdown(
         "<h1 style='text-align: center; margin-bottom: 5px; margin-top: 20px; color: #0f4c75; font-size: 1.6rem; font-weight: 700;'>Ganesh Todkari</h1>",
         unsafe_allow_html=True
@@ -218,8 +203,6 @@ with st.sidebar:
     )
 
     st.markdown("---")
-    
-    # Contact Info in Sidebar
     st.markdown("### 📍 Contact")
     st.markdown(
         """
@@ -238,14 +221,41 @@ with st.sidebar:
         unsafe_allow_html=True
     )
 
+# --- DEBUG HELPERS (temporary) ---
+st.markdown("### 🔧 Backend connectivity debug (temporary)")
+if st.button("Test /health from frontend"):
+    try:
+        r = requests.get(BACKEND_URL + "/health", timeout=10)
+        st.write("Status:", r.status_code)
+        st.json(r.json())
+    except Exception as e:
+        st.error(repr(e))
+
+if st.button("Test /predict/house from frontend"):
+    try:
+        payload = {
+            "area": 1200,
+            "year_built": 2010,
+            "bathrooms": 2,
+            "bedrooms": 3,
+            "parking_spots": 1,
+            "attached_rooms": 0,
+            "type": "apartment",
+            "lat": 18.52,
+            "lon": 73.85,
+            "include_extras": False
+        }
+        st.write("Payload:", payload)
+        r = requests.post(BACKEND_URL + "/predict/house", json=payload, timeout=20)
+        st.write("Status:", r.status_code)
+        st.json(r.json())
+    except Exception as e:
+        st.error(repr(e))
 
 # --- MAIN CONTENT START ---
-
-# --- HERO SECTION ---
 col1, col2 = st.columns([2, 1], gap="large")
 
 with col1:
-    # Cleaner Typographic Hero Header (Box removed)
     st.markdown("""
     <div class="hero-header-container">
         <div class="main-header">Turning Data into Strategy</div>
@@ -255,7 +265,6 @@ with col1:
     </div>
     """, unsafe_allow_html=True)
 
-    # Professional Story
     st.markdown("""
     <div class='info-box'>
         <h3 style='color: var(--dark-blue); margin-top: 0; font-size: 1.4rem; display: flex; align-items: center; gap: 10px;'>
@@ -284,7 +293,6 @@ with col1:
     """, unsafe_allow_html=True)
 
 with col2:
-    # Core Competencies
     with st.container():
         st.markdown("### 🎯 Core Competencies")
         
@@ -322,7 +330,6 @@ with col2:
         
         st.write("") # Spacer
         st.write("") # Spacer
-        # Resume Download Button
         if resume_path.exists():
             with open(resume_path, "rb") as pdf_file:
                 st.download_button(
@@ -334,13 +341,10 @@ with col2:
                     type="primary"
                 )
 
-
-
 # --- PROJECT PORTFOLIO SECTION ---
 st.write("")
 st.markdown('<div class="section-header">Featured Projects</div>', unsafe_allow_html=True)
 
-# Tabbed Project Layout
 tab_ds, tab_da, tab_ba = st.tabs(["🧬 Data Science & ML", "📊 Data Analytics & BI", "💼 Business Analysis & Strategy"])
 
 with tab_ds:
@@ -447,8 +451,7 @@ with tab_ba:
             "description": "Mapped existing workflows and designed an automated billing system to replace manual checkout processes.",
             "impact": "Reduced checkout time from 10 mins to 15 seconds (97% gain)",
             "skills": ["Process Mapping", "Requirement Gathering", "Automation Design"],
-            # Assuming you might have a page for this, otherwise remove button
-             "link": None 
+            "link": None 
         },
         
     ]
