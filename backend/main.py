@@ -503,6 +503,8 @@ def predict_house(data: HouseInput):
 # ---------------------------------------------------------------------
 # Run with: uvicorn app:app --reload
 # ---------------------------------------------------------------------
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=True)
+    # run the FastAPI instance from this file as module "main"
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
