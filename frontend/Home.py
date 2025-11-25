@@ -109,6 +109,7 @@ st.markdown("""
 
     /* Project Cards */
     .project-card {
+        background-color: var(--secondary-background-color);
         background: var(--background-white);
         padding: 1.8rem;
         border-radius: 12px;
@@ -142,7 +143,7 @@ st.markdown("""
     }
     
     .info-box {
-        background: var(--background-white);
+        background-color: var(--secondary-background-color);
         padding: 2rem;
         border-radius: 12px;
         box-shadow: var(--card-shadow);
