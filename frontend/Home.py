@@ -84,7 +84,7 @@ st.markdown("""
     }
 
     .main-header {
-        font-size: 3.5rem; /* Increased size for impact */
+        font-size: 2.5rem; /* Increased size for impact */
         font-weight: 800; /* Heavier weight */
         color: var(--dark-blue);
         margin-bottom: 1rem;
