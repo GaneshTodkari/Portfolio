@@ -10,6 +10,7 @@ st.set_page_config(
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
+    # Note: To test dark mode locally, go to the "hamburger" menu in the top right > Settings > Theme > Dark
 )
 
 # --- PATH SETUP ---
@@ -22,7 +23,7 @@ profile_pic_path = current_dir / "assets" / "profile.png"
 # Make sure you set this in Streamlit Cloud: BACKEND_URL = "https://portfolio-i8re.onrender.com"
 BACKEND_URL = st.secrets.get("BACKEND_URL", "https://portfolio-i8re.onrender.com")
 
-# --- POLISHED CSS (FONTS & THEME FORCING) ---
+# --- POLISHED CSS (FONTS & THEME SUPPORT) ---
 st.markdown("""
 <style>
     /* Import Google Font for a modern look */
@@ -32,30 +33,24 @@ st.markdown("""
         --primary-blue: #1f77b4;
         --secondary-blue: #4a90e2;
         --dark-blue: #0f4c75;
-        /* --light-blue: #f0f7fd; Removed as it's no longer used in heavy boxes */
         --text-dark: #2c3e50;
-        --text-medium: #546e7a; /* A nice readable dark gray for secondary text */
-        --background-white: #ffffff;
-        --card-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        --text-medium: #546e7a;
+        --card-shadow: 0 2px 8px rgba(0,0,0,0.08);
         --hover-shadow: 0 8px 16px rgba(31, 119, 180, 0.15);
     }
 
-    /* BASE TYPOGRAPHY & THEME FORCING (Keeps light mode consistent) */
+    /* BASE TYPOGRAPHY */
+    /* Apply font globally, but let Streamlit handle background/text colors for theme switching */
     [data-testid="stAppViewContainer"] {
-        background-color: #f8f9fa;
-        color: var(--text-dark);
         font-family: 'Poppins', sans-serif;
     }
     
     [data-testid="stSidebar"] {
-        background-color: #ffffff;
-        border-right: 1px solid #e1e8ed;
+        border-right: 1px solid rgba(49, 51, 63, 0.2);
     }
 
-    /* --- FIX 1: IMPROVE SIDEBAR NAV CONTRAST --- */
-    /* Target inactive sidebar links to make them darker and readable */
+    /* SIDEBAR NAV */
     [data-testid="stSidebarNav"] a {
-        color: var(--text-medium) !important;
         font-weight: 500;
     }
     /* Ensure active link is highlighted correctly */
@@ -64,28 +59,32 @@ st.markdown("""
         font-weight: 700;
     }
 
+    /* HEADINGS */
+    /* We keep these blue as they generally look okay in both modes,
+       but you could remove the color rule to let them turn white in dark mode. */
     h1, h2, h3, h4, .main-header, .section-header {
         font-family: 'Poppins', sans-serif;
         color: var(--dark-blue);
     }
     
+    /* GENERAL TEXT */
+    /* Removed fixed color override so paragraphs turn white in dark mode */
     p {
         line-height: 1.7;
-        color: var(--text-medium);
+        /* color: var(--text-medium); REMOVED to allow dark mode white text */
     }
 
     /* COMPONENTS */
     
-    /* --- FIX 2: CLEANER HERO HEADER DESIGN --- */
-    /* Removed heavy background box and borders for a typographic approach */
+    /* HERO HEADER */
     .hero-header-container {
         padding: 1rem 0 2rem 0;
         margin-bottom: 1rem;
     }
 
     .main-header {
-        font-size: 2.5rem; /* Increased size for impact */
-        font-weight: 800; /* Heavier weight */
+        font-size: 2.5rem;
+        font-weight: 800;
         color: var(--dark-blue);
         margin-bottom: 1rem;
         line-height: 1.1;
@@ -96,7 +95,7 @@ st.markdown("""
         font-weight: 600;
         margin: 3rem 0 1.5rem 0;
         padding-bottom: 0.5rem;
-        border-bottom: 2px solid #e1e8ed;
+        border-bottom: 2px solid rgba(49, 51, 63, 0.2);
     }
     
     /* Force rounded sidebar image */
@@ -107,13 +106,13 @@ st.markdown("""
         padding: 3px;
     }
 
-    /* Project Cards */
+    /* PROJECT CARDS & INFO BOXES */
+    /* Use var(--secondary-background-color) to adapt to light/dark mode backgrounds */
     .project-card {
         background-color: var(--secondary-background-color);
-        background: var(--background-white);
         padding: 1.8rem;
         border-radius: 12px;
-        border: 1px solid #edf2f7;
+        border: 1px solid rgba(49, 51, 63, 0.1); /* Subtle transparent border */
         box-shadow: var(--card-shadow);
         height: 100%;
         transition: all 0.3s ease;
@@ -128,9 +127,18 @@ st.markdown("""
         border-color: var(--secondary-blue);
     }
     
-    /* Skill Tags */
+    .info-box {
+        background-color: var(--secondary-background-color);
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: var(--card-shadow);
+        margin: 1rem 0;
+        border: 1px solid rgba(49, 51, 63, 0.1);
+    }
+
+    /* SKILL TAGS */
     .skill-tag {
-        background: #ffffff;
+        background: var(--secondary-background-color); /* Adaptable background */
         color: var(--primary-blue);
         padding: 0.3rem 0.8rem;
         border-radius: 20px;
@@ -141,14 +149,6 @@ st.markdown("""
         font-weight: 500;
         box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     }
-    
-    .info-box {
-        background-color: var(--secondary-background-color);
-        padding: 2rem;
-        border-radius: 12px;
-        box-shadow: var(--card-shadow);
-        margin: 1rem 0;
-    }
 
     /* TABS Styling */
     .stTabs [data-baseweb="tab-list"] {
@@ -158,23 +158,22 @@ st.markdown("""
     }
     .stTabs [data-baseweb="tab"] {
         height: 45px;
-        background-color: var(--background-white);
+        background-color: var(--secondary-background-color); /* Adaptable background */
         border-radius: 8px;
-        border: 1px solid #e0e0e0;
+        border: 1px solid rgba(49, 51, 63, 0.2);
         padding: 0 20px;
         font-weight: 600;
-        color: var(--text-medium);
         transition: all 0.2s;
     }
     
-    /* --- FIX 3: ACTIVE TAB CONTRAST --- */
-    /* Force text and icons inside the active tab to be white */
+    /* ACTIVE TAB CONTRAST */
+    /* Force text and icons inside the active tab to be white on blue background */
     .stTabs [aria-selected="true"],
     .stTabs [aria-selected="true"] p,
     .stTabs [aria-selected="true"] svg {
         background-color: var(--primary-blue) !important;
         color: #ffffff !important;
-        fill: #ffffff !important; /* For SVG icons if present */
+        fill: #ffffff !important;
         border: none;
         box-shadow: 0 4px 6px rgba(31, 119, 180, 0.2);
     }
@@ -188,6 +187,12 @@ st.markdown("""
     }
     .stButton button:active {
          transform: scale(0.98);
+    }
+    
+    /* Custom utility class for secondary text color that adapts */
+    .text-medium {
+        color: var(--text-color);
+        opacity: 0.8;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -218,7 +223,7 @@ with st.sidebar:
         unsafe_allow_html=True
     )
     st.markdown(
-        "<h3 style='text-align: center; color: #546e7a; margin-top: 0; font-weight: 500; font-size: 1rem;'>MBA-IT @ SICSR</h3>",
+        "<h3 style='text-align: center; color: var(--text-color); opacity: 0.8; margin-top: 0; font-weight: 500; font-size: 1rem;'>MBA-IT @ SICSR</h3>",
         unsafe_allow_html=True
     )
 
@@ -226,17 +231,18 @@ with st.sidebar:
     
     # Contact Info in Sidebar
     st.markdown("### 📍 Contact")
+    # Using theme-aware text colors for links
     st.markdown(
         """
         <div style='font-size: 0.9rem;'>
             <div style='margin-bottom: 8px;'>
-                <a href='mailto:ganesh697todkari@email.com' style='text-decoration: none; color: #546e7a;'>📧 Email Me</a>
+                <a href='mailto:ganesh697todkari@email.com' style='text-decoration: none; color: inherit; opacity: 0.8;'>📧 Email Me</a>
             </div>
             <div style='margin-bottom: 8px;'>
-                <a href='https://linkedin.com/in/GaneshTodkari' style='text-decoration: none; color: #546e7a;'>🔗 LinkedIn Profile</a>
+                <a href='https://linkedin.com/in/GaneshTodkari' style='text-decoration: none; color: inherit; opacity: 0.8;'>🔗 LinkedIn Profile</a>
             </div>
             <div>
-                <a href='https://github.com/GaneshTodkari' style='text-decoration: none; color: #546e7a;'>💻 GitHub Portfolio</a>
+                <a href='https://github.com/GaneshTodkari' style='text-decoration: none; color: inherit; opacity: 0.8;'>💻 GitHub Portfolio</a>
             </div>
         </div>
         """,
@@ -250,10 +256,11 @@ with st.sidebar:
 col1, col2 = st.columns([2, 1], gap="large")
 
 with col1:
+    # Used CSS class .text-medium for theme-aware secondary color
     st.markdown("""
     <div class="hero-header-container">
         <div class="main-header">Turning Data into Strategy</div>
-        <p style="font-size: 1.25rem; color: var(--text-medium); margin-bottom: 0; font-weight: 400;">
+        <p class="text-medium" style="font-size: 1.25rem; margin-bottom: 0; font-weight: 400;">
             Bridging the gap between complex datasets and actionable business strategy.
         </p>
     </div>
@@ -274,14 +281,14 @@ with col1:
         <p>
         That curiosity drove me to pursue an <strong>MBA in IT</strong> to nurture my managerial skills and bridge the gap between raw code and business strategy. I’ve turned this curiosity into action through hands-on projects:
         </p>
-        <ul style="color: var(--text-medium); line-height: 1.7; margin-bottom: 1rem;">
+        <ul class="text-medium" style="line-height: 1.7; margin-bottom: 1rem;">
             <li><strong>Business Analysis:</strong> Designed automated billing workflows for <strong>VybeRiders</strong>, bridging the gap between operations and tech.</li>
             <li><strong>Data Science:</strong> Built <strong>Machine Learning models</strong> for Fraud Detection and Sales Forecasting using <strong>Python & SQL</strong>.</li>
         </ul>
         <p>
         These experiences have defined my niche at the intersection of <strong>Data Science</strong> and <strong>Business Analysis</strong>.
         </p>
-        <p style='margin-bottom: 0; font-size: 0.95rem; color: var(--text-medium); border-top: 1px solid #eee; padding-top: 1rem;'>
+        <p class="text-medium" style='margin-bottom: 0; font-size: 0.95rem; border-top: 1px solid rgba(49, 51, 63, 0.1); padding-top: 1rem;'>
         <strong>Offline:</strong> When I’m not working, you can find me reading Manga, watching Anime, or cheering for my favorite cricket team.
         </p>
     </div>
@@ -385,7 +392,7 @@ with tab_ds:
                     <h4 style='color: #0f4c75; margin-top: 0; margin-bottom: 5px;'>{project['title']}</h4>
                     <p style='color: #1f77b4; font-weight: 600; font-size: 0.85rem; margin-bottom: 10px;'>{project['subtitle']}</p>
                     <p style='font-size: 0.95rem;'>{project['description']}</p>
-                    <div style='background: #f0f7fd; padding: 0.5rem 0.8rem; border-radius: 6px; margin: 1rem 0; font-size: 0.9rem;'>
+                    <div style='background: var(--secondary-background-color); padding: 0.5rem 0.8rem; border-radius: 6px; margin: 1rem 0; font-size: 0.9rem;'>
                         <strong style='color: #0f4c75;'>Key Metric:</strong> {project['metrics']}
                     </div>
                 </div>
@@ -428,7 +435,7 @@ with tab_da:
                     <h4 style='color: #0f4c75; margin-top: 0; margin-bottom: 5px;'>{project['title']}</h4>
                     <p style='color: #1f77b4; font-weight: 600; font-size: 0.85rem; margin-bottom: 10px;'>{project['subtitle']}</p>
                     <p style='font-size: 0.95rem;'>{project['description']}</p>
-                    <div style='background: #f0f7fd; padding: 0.5rem 0.8rem; border-radius: 6px; margin: 1rem 0; font-size: 0.9rem;'>
+                    <div style='background: var(--secondary-background-color); padding: 0.5rem 0.8rem; border-radius: 6px; margin: 1rem 0; font-size: 0.9rem;'>
                         <strong style='color: #0f4c75;'>Business Impact:</strong> {project['impact']}
                     </div>
                 </div>
@@ -465,7 +472,7 @@ with tab_ba:
                     <h4 style='color: #0f4c75; margin-top: 0; margin-bottom: 5px;'>{project['title']}</h4>
                     <p style='color: #1f77b4; font-weight: 600; font-size: 0.85rem; margin-bottom: 10px;'>{project['subtitle']}</p>
                     <p style='font-size: 0.95rem;'>{project['description']}</p>
-                    <div style='background: #f0f7fd; padding: 0.5rem 0.8rem; border-radius: 6px; margin: 1rem 0; font-size: 0.9rem;'>
+                    <div style='background: var(--secondary-background-color); padding: 0.5rem 0.8rem; border-radius: 6px; margin: 1rem 0; font-size: 0.9rem;'>
                         <strong style='color: #0f4c75;'>Business Impact:</strong> {project['impact']}
                     </div>
                 </div>
@@ -483,8 +490,9 @@ with tab_ba:
 
 # --- FOOTER ---
 st.markdown("---")
+# Using .text-medium class for footer text to adapt to theme
 st.markdown("""
-<div style='text-align: center; color: #7f8c8d; padding: 2rem 0;'>
+<div class="text-medium" style='text-align: center; padding: 2rem 0;'>
     <h4 style='color: #0f4c75; margin-bottom: 0.5rem;'>Let's Connect</h4>
     <p style='margin-bottom: 1.5rem; font-size: 0.9rem;'>Open to full-time opportunities in Data Science & Analytics.</p>
     <div style='margin: 1rem 0; font-size: 1.1rem;'>
@@ -492,6 +500,6 @@ st.markdown("""
         <a href='https://linkedin.com/in/GaneshTodkari' style='margin: 0 1.5rem; color: #1f77b4; text-decoration: none; font-weight: 600;'>🔗 LinkedIn</a>
         <a href='https://github.com/GaneshTodkari' style='margin: 0 1.5rem; color: #1f77b4; text-decoration: none; font-weight: 600;'>💻 GitHub</a>
     </div>
-    <p style='margin-top: 2rem; font-size: 0.75rem; color: #b0bec5;'>© 2023 Ganesh Todkari • Built with Python & Streamlit</p>
+    <p style='margin-top: 2rem; font-size: 0.75rem; opacity: 0.7;'>© 2023 Ganesh Todkari • Built with Python & Streamlit</p>
 </div>
 """, unsafe_allow_html=True)
