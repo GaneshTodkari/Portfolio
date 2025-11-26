@@ -289,7 +289,7 @@ def predict_fraud(data: FraudInput):
 
             if hasattr(f_model, "classes_"):
                 try:
-                    idx_pos = list(f_model.classes_).index(1)  # index of label '1' (fraud)
+                    idx_pos = list(f_model.classes_).index(0)  # index of label '1' (fraud)
                 except ValueError:
                     idx_pos = 1 if len(probs) > 1 else 0
                 proba = float(probs[idx_pos])
