@@ -45,10 +45,12 @@ logging.basicConfig(level=logging.INFO)
 # ---------------------------------------------------------------------
 # Minimal ping & health (cron friendly)
 # ---------------------------------------------------------------------
+from fastapi.responses import JSONResponse
+
 @app.get("/ping")
 async def ping():
-    # Keep small — cron services prefer very short responses
-    return {"status": "ok"}
+    # return extremely small JSON with explicit headers
+    return JSONResponse({"status": "ok"}, media_type="application/json")
 
 # models storage and readiness flag
 models: Dict[str, Any] = {
