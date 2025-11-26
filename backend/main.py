@@ -255,11 +255,9 @@ def predict_fraud(data: FraudInput):
 
     if not all([f_model, f_scaler, f_kmeans]):
         raise HTTPException(status_code=503, detail="Fraud artifacts not fully available")
-
     if data.amount < 0:
         raise HTTPException(status_code=400, detail="amount cannot be negative")
 
-    # cluster (trained on [lon, lat])
     try:
         cluster = int(f_kmeans.predict([[data.long, data.lat]])[0])
     except Exception:
@@ -268,20 +266,10 @@ def predict_fraud(data: FraudInput):
     chip_val = 1 if str(data.use_chip).strip().lower() == "swipe" else 0
 
     input_data = {
-        'current_age': 55,
-        'retirement_age': 66,
-        'credit_score': 685,
-        'num_credit_cards': 3,
-        'num_cards_issued': 66,
-        'year_pin_last_changed': 2018,
-        'amount': data.amount,
-        'use_chip': chip_val,
-        'gender': 1,
-        'card_brand': 2,
-        'card_type': 1,
-        'has_chip': 1,
-        'years_with_bank': 10,
-        'location_cluster': cluster
+        'current_age': 55, 'retirement_age': 66, 'credit_score': 685,
+        'num_credit_cards': 3, 'num_cards_issued': 66, 'year_pin_last_changed': 2018,
+        'amount': data.amount, 'use_chip': chip_val, 'gender': 1, 'card_brand': 2,
+        'card_type': 1, 'has_chip': 1, 'years_with_bank': 10, 'location_cluster': cluster
     }
 
     cols = ['current_age', 'retirement_age', 'credit_score', 'num_credit_cards',
@@ -294,39 +282,34 @@ def predict_fraud(data: FraudInput):
     try:
         df_scaled = f_scaler.transform(df)
 
-        # Robustly get probability for positive class (assumed label==1)
         proba = None
         if hasattr(f_model, "predict_proba"):
-            probs_all = f_model.predict_proba(df_scaled)  # shape (n_samples, n_classes)
-            # take the first (and only) sample
-            probs_for_sample = probs_all[0]
+            probs_all = f_model.predict_proba(df_scaled)      # shape (n_samples, n_classes)
+            probs = probs_all[0]                              # first (only) sample
 
-            # If model exposes class labels, find index of label 1
             if hasattr(f_model, "classes_"):
                 try:
-                    idx_pos = list(f_model.classes_).index(1)
+                    idx_pos = list(f_model.classes_).index(1)  # index of label '1' (fraud)
                 except ValueError:
-                    # label '1' not found, fall back to best-effort:
-                    idx_pos = 1 if len(probs_for_sample) > 1 else 0
-                proba = float(probs_for_sample[idx_pos])
+                    idx_pos = 1 if len(probs) > 1 else 0
+                proba = float(probs[idx_pos])
             else:
-                # no classes_ attribute — assume binary with fraud=class 1 at index 1
-                idx_pos = 1 if len(probs_for_sample) > 1 else 0
-                proba = float(probs_for_sample[idx_pos])
+                idx_pos = 1 if len(probs) > 1 else 0
+                proba = float(probs[idx_pos])
 
+            logger.debug("fraud_model.classes_: %s", getattr(f_model, "classes_", None))
+            logger.debug("predict_proba sample probs: %s", probs)
         else:
-            # fallback to predict (binary)
             pred = f_model.predict(df_scaled)
             proba = 1.0 if pred[0] == 1 else 0.0
 
-        # sanity clamp & format
-        proba = max(0.0, min(1.0, float(proba)))
-
+        proba = max(0.0, min(1.0, float(proba)))  # clamp
         return {
             "fraud_probability": round(proba, 4),
             "is_fraud": bool(proba > 0.5),
             "risk_level": "CRITICAL" if proba > 0.8 else "HIGH" if proba > 0.5 else "LOW"
         }
+
     except Exception as e:
         logger.exception("Fraud prediction failed: %s", e)
         raise HTTPException(status_code=500, detail="Fraud prediction failed")
