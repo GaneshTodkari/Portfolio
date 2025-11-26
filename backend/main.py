@@ -249,7 +249,7 @@ def predict_fraud(data: FraudInput):
     try:
         df_scaled = f_scaler.transform(df)
         # Note: keep consistent with your model's predict_proba order (class 1 vs 0)
-        proba = float(f_model.predict_proba(df_scaled)[0][1])  # probability for fraud class
+        proba = float(f_model.predict_proba(df_scaled)[0][0])  # probability for fraud class
         return {
             "fraud_probability": proba,
             "is_fraud": bool(proba > 0.5),
