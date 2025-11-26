@@ -259,7 +259,7 @@ def predict_fraud(data: FraudInput):
     if data.amount < 0:
         raise HTTPException(status_code=400, detail="amount cannot be negative")
 
-    # location cluster (trained on [lon, lat] — keep consistent with training)
+    # cluster (trained on [lon, lat])
     try:
         cluster = int(f_kmeans.predict([[data.long, data.lat]])[0])
     except Exception:
@@ -294,24 +294,33 @@ def predict_fraud(data: FraudInput):
     try:
         df_scaled = f_scaler.transform(df)
 
-        # Try to get probability for the "fraud" class robustly:
+        # Robustly get probability for positive class (assumed label==1)
         proba = None
-        if hasattr(f_model, "classes_") and hasattr(f_model, "predict_proba"):
-            # try to find the positive class index (1)
-            try:
-                cls_idx = list(f_model.classes_).index(1)
-                proba = float(f_model.predict_proba(df_scaled)[1][cls_idx])
-            except ValueError:
-                # class '1' not present, fallback to index 1 if available
-                probs = f_model.predict_proba(df_scaled)[1]
-                proba = float(probs[0]) if len(probs) > 1 else float(probs[1])
-        elif hasattr(f_model, "predict_proba"):
-            probs = f_model.predict_proba(df_scaled)[1]
-            proba = float(probs[0]) if len(probs) > 1 else float(probs[1])
+        if hasattr(f_model, "predict_proba"):
+            probs_all = f_model.predict_proba(df_scaled)  # shape (n_samples, n_classes)
+            # take the first (and only) sample
+            probs_for_sample = probs_all[0]
+
+            # If model exposes class labels, find index of label 1
+            if hasattr(f_model, "classes_"):
+                try:
+                    idx_pos = list(f_model.classes_).index(1)
+                except ValueError:
+                    # label '1' not found, fall back to best-effort:
+                    idx_pos = 1 if len(probs_for_sample) > 1 else 0
+                proba = float(probs_for_sample[idx_pos])
+            else:
+                # no classes_ attribute — assume binary with fraud=class 1 at index 1
+                idx_pos = 1 if len(probs_for_sample) > 1 else 0
+                proba = float(probs_for_sample[idx_pos])
+
         else:
-            # fallback to model.predict (binary)
+            # fallback to predict (binary)
             pred = f_model.predict(df_scaled)
-            proba = 1.0 if pred[1] == 1 else 0.0
+            proba = 1.0 if pred[0] == 1 else 0.0
+
+        # sanity clamp & format
+        proba = max(0.0, min(1.0, float(proba)))
 
         return {
             "fraud_probability": round(proba, 4),
@@ -321,7 +330,6 @@ def predict_fraud(data: FraudInput):
     except Exception as e:
         logger.exception("Fraud prediction failed: %s", e)
         raise HTTPException(status_code=500, detail="Fraud prediction failed")
-
 
 # ---------------------------------------------------------------------
 # 3) HOUSE PRICE ENDPOINT (cleaned)
