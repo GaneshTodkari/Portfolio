@@ -236,7 +236,7 @@ with st.sidebar:
         """
         <div style='font-size: 0.9rem;'>
             <div style='margin-bottom: 8px;'>
-                <a href='mailto:ganesh697todkari@email.com' style='text-decoration: none; color: inherit; opacity: 0.8;'>📧 Email Me</a>
+                <a href='mailto:ganesh697todkari@gmail.com' style='text-decoration: none; color: inherit; opacity: 0.8;'>📧 Email Me</a>
             </div>
             <div style='margin-bottom: 8px;'>
                 <a href='https://linkedin.com/in/GaneshTodkari' style='text-decoration: none; color: inherit; opacity: 0.8;'>🔗 LinkedIn Profile</a>
