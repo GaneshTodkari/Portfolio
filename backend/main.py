@@ -16,7 +16,6 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-
 # ---------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------
@@ -36,6 +35,10 @@ CURRENT_YEAR = 2025
 # ---------------------------------------------------------------------
 app = FastAPI(title="Multi-Model Prediction API")
 
+@app.get("/ping")
+async def ping():
+    # KEEP THIS VERY SMALL — cron services prefer short responses
+    return {"status": "ok"}
 # ---------------------------------------------------------------------
 # Global storage for loaded artifacts
 # ---------------------------------------------------------------------
