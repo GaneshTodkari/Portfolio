@@ -97,12 +97,6 @@ loc_map = {
 }
 lat, long = loc_map[location]
 
-# Debug: (developer note) path to last uploaded screenshot in this session
-# Use this local path as a reference URL if needed:
-SCREENSHOT_PATH = "/mnt/data/7a611118-44f9-4d3d-b8c1-aaaa0f11c857.png"
-# (Displayed only as text so you can copy it into docs or repo if required)
-st.caption(f"Debug screenshot (local path): {SCREENSHOT_PATH}")
-
 if st.button("🔍 Analyze Transaction"):
     # Build minimal payload to match FastAPI's expected schema
     payload = {
