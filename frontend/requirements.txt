@@ -3,3 +3,9 @@ requests
 pandas
 numpy
 pypdf
+joblib
+scikit-learn
+docx2txt
+PyMuPDF
+spacy
+sentence-transformers

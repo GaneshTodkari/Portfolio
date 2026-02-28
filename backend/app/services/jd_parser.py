@@ -4,11 +4,30 @@ import spacy
 
 from app.services.skill_phrase_filter import SkillPhraseFilter
 
-nlp = spacy.load("en_core_web_sm")
+
+def _load_nlp():
+    try:
+        return spacy.load("en_core_web_sm")
+    except Exception:
+        try:
+            from spacy.cli import download
+
+            download("en_core_web_sm")
+            return spacy.load("en_core_web_sm")
+        except Exception:
+            return None
+
+
+nlp = _load_nlp()
 
 
 class JDParser:
     def __init__(self):
+        if nlp is None:
+            raise RuntimeError(
+                "spaCy model `en_core_web_sm` is not available. "
+                "Install with: python -m spacy download en_core_web_sm"
+            )
         self.skill_filter = SkillPhraseFilter(nlp)
         self.direct_terms = [
             "python", "java", "javascript", "sql", "nosql", "pyspark", "spark",
