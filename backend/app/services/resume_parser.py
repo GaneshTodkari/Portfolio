@@ -12,13 +12,7 @@ def _load_nlp():
 
         return spacy.load("en_core_web_sm")
     except Exception:
-        try:
-            from spacy.cli import download
-
-            download("en_core_web_sm")
-            return spacy.load("en_core_web_sm")
-        except Exception:
-            return None
+        return None
 
 
 nlp = _load_nlp()
