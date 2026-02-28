@@ -1,5 +1,6 @@
 import importlib
 import os
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -40,6 +41,71 @@ def get_value(result, key, default=None):
     if isinstance(result, dict):
         return result.get(key, default)
     return default
+
+
+def _extract_text_from_path(file_path: str) -> str:
+    suffix = Path(file_path).suffix.lower()
+    if suffix == ".txt":
+        return Path(file_path).read_text(encoding="utf-8", errors="ignore")
+    if suffix == ".pdf":
+        try:
+            from pypdf import PdfReader
+
+            reader = PdfReader(file_path)
+            return "\n".join((p.extract_text() or "") for p in reader.pages)
+        except Exception:
+            return ""
+    if suffix == ".docx":
+        try:
+            import docx2txt
+
+            return docx2txt.process(file_path) or ""
+        except Exception:
+            return ""
+    return ""
+
+
+def _tokens(text: str):
+    toks = re.findall(r"\b[a-z][a-z0-9+#.\-]{1,}\b", (text or "").lower())
+    stop = {
+        "the", "and", "for", "with", "that", "this", "from", "are", "you", "your", "our",
+        "was", "were", "will", "have", "has", "into", "of", "in", "to", "a", "an", "or",
+    }
+    return [t for t in toks if t not in stop]
+
+
+def fallback_score_resume(resume_path: str, jd_text: str, model_path: str = ""):
+    resume_text = _extract_text_from_path(resume_path)
+    jd_tokens = set(_tokens(jd_text))
+    resume_tokens = set(_tokens(resume_text))
+
+    jd_skill_seed = [
+        "python", "sql", "excel", "power", "bi", "tableau", "analytics",
+        "statistics", "etl", "pandas", "numpy", "communication",
+    ]
+    jd_skills = sorted({s for s in jd_skill_seed if s in jd_tokens})
+    resume_skills = sorted({s for s in jd_skill_seed if s in resume_tokens})
+
+    matching = sorted(set(jd_skills).intersection(resume_skills))
+    missing = sorted(set(jd_skills).difference(resume_skills))
+
+    skill_score = (len(matching) / len(jd_skills) * 100.0) if jd_skills else 0.0
+    semantic_score = (len(jd_tokens & resume_tokens) / len(jd_tokens) * 100.0) if jd_tokens else 0.0
+    years = re.findall(r"(\d+(?:\.\d+)?)\s*\+?\s*(?:yr|yrs|year|years)\b", jd_text.lower())
+    required_exp = max([float(y) for y in years], default=0.0)
+    experience_score = 100.0 if required_exp <= 0 else 0.0
+    final_score = round(0.55 * semantic_score + 0.30 * skill_score + 0.15 * experience_score, 2)
+
+    return {
+        "final_score": round(final_score, 2),
+        "semantic_score": round(semantic_score, 2),
+        "skill_score": round(skill_score, 2),
+        "experience_score": round(experience_score, 2),
+        "matching_skills": matching,
+        "missing_skills": missing,
+        "resume_skills": resume_skills,
+        "jd_skills": jd_skills,
+    }
 
 
 st.markdown(
@@ -114,8 +180,9 @@ with st.expander("Pipeline Flow"):
 
 score_resume, module_name, import_errors = load_score_resume()
 if score_resume is None:
-    st.error("Unable to import `score_resume` in this repository.")
-    with st.expander("Import details"):
+    score_resume = fallback_score_resume
+    st.warning("Backend model service is unavailable in this environment. Running fallback scorer.")
+    with st.expander("Technical details"):
         st.code("\n".join(import_errors or []))
 
 left_col, right_col = st.columns([1, 1], gap="large")
