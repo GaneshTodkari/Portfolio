@@ -1,505 +1,523 @@
 import streamlit as st
-import requests
-import os
-import time
 from pathlib import Path
 
-# --- PAGE CONFIGURATION ---
 st.set_page_config(
     page_title="Ganesh Todkari | Data & Business Analytics Portfolio",
     page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded"
-    # Note: To test dark mode locally, go to the "hamburger" menu in the top right > Settings > Theme > Dark
+    initial_sidebar_state="expanded",
 )
 
-# --- PATH SETUP ---
-# Ensure these paths exist in your project folder
 current_dir = Path(__file__).resolve().parent
 resume_path = current_dir / "assets" / "resume.pdf"
 profile_pic_path = current_dir / "assets" / "profile.png"
 
-# --- BACKEND URL (from Streamlit secrets) ---
-# Make sure you set this in Streamlit Cloud: BACKEND_URL = "https://portfolio-i8re.onrender.com"
-BACKEND_URL = st.secrets.get("BACKEND_URL", "https://portfolio-i8re.onrender.com")
-
-# --- POLISHED CSS (FONTS & THEME SUPPORT) ---
-st.markdown("""
+st.markdown(
+    """
 <style>
-    /* Import Google Font for a modern look */
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
 
     :root {
-        --primary-blue: #1f77b4;
-        --secondary-blue: #4a90e2;
-        --dark-blue: #0f4c75;
-        --text-dark: #2c3e50;
-        --text-medium: #546e7a;
-        --card-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        --hover-shadow: 0 8px 16px rgba(31, 119, 180, 0.15);
+        --accent: #1f77b4;
+        --accent-soft: #4a90e2;
+        --text-strong: var(--text-color);
+        --card-border: rgba(49, 51, 63, 0.16);
+        --card-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+        --card-shadow-hover: 0 14px 26px rgba(15, 23, 42, 0.12);
     }
 
-    /* BASE TYPOGRAPHY */
-    /* Apply font globally, but let Streamlit handle background/text colors for theme switching */
     [data-testid="stAppViewContainer"] {
         font-family: 'Poppins', sans-serif;
     }
-    
-    [data-testid="stSidebar"] {
-        border-right: 1px solid rgba(49, 51, 63, 0.2);
+
+    [data-testid="stMainBlockContainer"] {
+        max-width: 1180px;
+        padding-top: 1.1rem;
     }
 
-    /* SIDEBAR NAV */
+    [data-testid="stSidebar"] {
+        border-right: 1px solid var(--card-border);
+    }
+
     [data-testid="stSidebarNav"] a {
         font-weight: 500;
     }
-    /* Ensure active link is highlighted correctly */
+
     [data-testid="stSidebarNav"] a[aria-current="page"] {
-        color: var(--primary-blue) !important;
+        color: var(--accent) !important;
         font-weight: 700;
     }
 
-    /* HEADINGS */
-    /* We keep these blue as they generally look okay in both modes,
-       but you could remove the color rule to let them turn white in dark mode. */
-    h1, h2, h3, h4, .main-header, .section-header {
-        font-family: 'Poppins', sans-serif;
-        color: var(--dark-blue);
-    }
-    
-    /* GENERAL TEXT */
-    /* Removed fixed color override so paragraphs turn white in dark mode */
-    p {
-        line-height: 1.7;
-        /* color: var(--text-medium); REMOVED to allow dark mode white text */
+    h1, h2, h3, h4, .main-header, .section-header, .card-title {
+        color: var(--text-strong);
+        letter-spacing: -0.02em;
     }
 
-    /* COMPONENTS */
-    
-    /* HERO HEADER */
-    .hero-header-container {
-        padding: 1rem 0 2rem 0;
-        margin-bottom: 1rem;
+    p {
+        line-height: 1.65;
+    }
+
+    .hero-wrap {
+        margin: 0.5rem 0 1.6rem 0;
+    }
+
+    .hero-kicker {
+        font-size: 0.85rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 0.6rem;
     }
 
     .main-header {
         font-size: 2.5rem;
         font-weight: 800;
-        color: var(--dark-blue);
-        margin-bottom: 1rem;
         line-height: 1.1;
-    }
-    
-    .section-header {
-        font-size: 1.8rem;
-        font-weight: 600;
-        margin: 3rem 0 1.5rem 0;
-        padding-bottom: 0.5rem;
-        border-bottom: 2px solid rgba(49, 51, 63, 0.2);
-    }
-    
-    /* Force rounded sidebar image */
-    [data-testid="stSidebar"] img {
-        border-radius: 50%;
-        object-fit: cover;
-        border: 3px solid var(--primary-blue);
-        padding: 3px;
+        margin-bottom: 0.8rem;
     }
 
-    /* PROJECT CARDS & INFO BOXES */
-    /* Use var(--secondary-background-color) to adapt to light/dark mode backgrounds */
+    .hero-subtitle {
+        font-size: 1.12rem;
+        opacity: 0.86;
+        margin-bottom: 0;
+        max-width: 900px;
+    }
+
+    .section-header {
+        font-size: 1.7rem;
+        font-weight: 700;
+        margin: 2.4rem 0 1.2rem 0;
+        padding-bottom: 0.45rem;
+        border-bottom: 2px solid var(--card-border);
+    }
+
+    .card,
     .project-card {
         background-color: var(--secondary-background-color);
-        padding: 1.8rem;
+        border: 1px solid var(--card-border);
         border-radius: 12px;
-        border: 1px solid rgba(49, 51, 63, 0.1); /* Subtle transparent border */
         box-shadow: var(--card-shadow);
+    }
+
+    .card {
+        padding: 1.4rem 1.5rem;
+    }
+
+    .project-card {
+        padding: 1.4rem;
         height: 100%;
-        transition: all 0.3s ease;
+        transition: 0.25s ease;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
     }
-    
+
     .project-card:hover {
-        transform: translateY(-5px);
-        box-shadow: var(--hover-shadow);
-        border-color: var(--secondary-blue);
-    }
-    
-    .info-box {
-        background-color: var(--secondary-background-color);
-        padding: 2rem;
-        border-radius: 12px;
-        box-shadow: var(--card-shadow);
-        margin: 1rem 0;
-        border: 1px solid rgba(49, 51, 63, 0.1);
+        transform: translateY(-4px);
+        box-shadow: var(--card-shadow-hover);
+        border-color: rgba(31, 119, 180, 0.38);
     }
 
-    /* SKILL TAGS */
-    .skill-tag {
-        background: var(--secondary-background-color); /* Adaptable background */
-        color: var(--primary-blue);
-        padding: 0.3rem 0.8rem;
-        border-radius: 20px;
-        font-size: 0.75rem;
-        margin: 0.25rem;
-        display: inline-block;
-        border: 1px solid var(--secondary-blue);
-        font-weight: 500;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-    }
-
-    /* TABS Styling */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 0.5rem;
-        background-color: transparent;
-        padding-bottom: 5px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 45px;
-        background-color: var(--secondary-background-color); /* Adaptable background */
-        border-radius: 8px;
-        border: 1px solid rgba(49, 51, 63, 0.2);
-        padding: 0 20px;
+    .card-subtitle {
+        color: var(--accent);
+        font-size: 0.86rem;
         font-weight: 600;
-        transition: all 0.2s;
+        margin-bottom: 0.55rem;
     }
-    
-    /* ACTIVE TAB CONTRAST */
-    /* Force text and icons inside the active tab to be white on blue background */
-    .stTabs [aria-selected="true"],
+
+    .metric-box {
+        border: 1px solid var(--card-border);
+        border-left: 3px solid var(--accent-soft);
+        border-radius: 8px;
+        padding: 0.6rem 0.8rem;
+        margin: 0.9rem 0 0.8rem 0;
+        font-size: 0.9rem;
+        opacity: 0.95;
+    }
+
+    .skill-tag {
+        background: rgba(31, 119, 180, 0.1);
+        color: var(--accent);
+        border: 1px solid rgba(31, 119, 180, 0.28);
+        border-radius: 999px;
+        display: inline-block;
+        padding: 0.28rem 0.78rem;
+        margin: 0.2rem;
+        font-size: 0.74rem;
+        font-weight: 600;
+    }
+
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.45rem;
+        padding-bottom: 0.4rem;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 9px;
+        border: 1px solid var(--card-border);
+        font-weight: 600;
+        height: 44px;
+        padding: 0 18px;
+    }
+
+    .stTabs [aria-selected="true"] {
+        background-color: var(--accent) !important;
+        color: #fff !important;
+        border: none !important;
+    }
+
     .stTabs [aria-selected="true"] p,
     .stTabs [aria-selected="true"] svg {
-        background-color: var(--primary-blue) !important;
-        color: #ffffff !important;
-        fill: #ffffff !important;
-        border: none;
-        box-shadow: 0 4px 6px rgba(31, 119, 180, 0.2);
+        color: #fff !important;
+        fill: #fff !important;
     }
-    
-    /* Buttons */
+
     .stButton button {
         width: 100%;
         border-radius: 8px;
         font-weight: 600;
-        transition: transform 0.1s;
     }
-    .stButton button:active {
-         transform: scale(0.98);
+
+    .profile-name {
+        text-align: center;
+        margin: 1.1rem 0 0.2rem 0;
+        font-size: 1.5rem;
+        font-weight: 700;
     }
-    
-    /* Custom utility class for secondary text color that adapts */
-    .text-medium {
-        color: var(--text-color);
+
+    .profile-role {
+        text-align: center;
+        margin-top: 0;
         opacity: 0.8;
+        font-size: 0.95rem;
+        font-weight: 500;
+    }
+
+    [data-testid="stSidebar"] img {
+        border-radius: 50%;
+        border: 3px solid rgba(31, 119, 180, 0.65);
+        padding: 3px;
+    }
+
+    .footer-wrap {
+        text-align: center;
+        padding: 1.6rem 0 0.7rem 0;
+        opacity: 0.92;
+    }
+
+    .footer-links {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.9rem 1.3rem;
+        margin: 0.95rem 0 0.7rem 0;
+    }
+
+    .footer-link {
+        color: var(--accent);
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    @media (max-width: 900px) {
+        .main-header { font-size: 2.05rem; }
+        .section-header { font-size: 1.45rem; }
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
-# --- SIDEBAR ---
 with st.sidebar:
-    st.write("") # Top spacing
+    st.write("")
     if profile_pic_path.exists():
-        # Using columns to center the image perfectly
-        col1, col2, col3 = st.columns([0.5, 2, 0.5])
-        with col2:
+        _, center_col, _ = st.columns([0.5, 2, 0.5])
+        with center_col:
             st.image(str(profile_pic_path), width=180)
     else:
-        # Fallback placeholder
         st.markdown(
             """
-            <div style='width: 160px; height: 160px; border-radius: 50%; background: linear-gradient(135deg, var(--primary-blue), var(--secondary-blue));
-                        display: flex; align-items: center; justify-content: center; color: white; font-size: 3rem; margin: 0 auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1);'>
+            <div style="width:160px;height:160px;border-radius:50%;
+                        background:linear-gradient(135deg,#1f77b4,#4a90e2);
+                        display:flex;align-items:center;justify-content:center;
+                        color:#fff;font-size:2.8rem;margin:0 auto;">
                 GT
             </div>
             """,
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
 
-    # Name and Title
-    st.markdown(
-        "<h1 style='text-align: center; margin-bottom: 5px; margin-top: 20px; color: #0f4c75; font-size: 1.6rem; font-weight: 700;'>Ganesh Todkari</h1>",
-        unsafe_allow_html=True
-    )
-    st.markdown(
-        "<h3 style='text-align: center; color: var(--text-color); opacity: 0.8; margin-top: 0; font-weight: 500; font-size: 1rem;'>MBA-IT @ SICSR</h3>",
-        unsafe_allow_html=True
-    )
-
+    st.markdown("<h1 class='profile-name'>Ganesh Todkari</h1>", unsafe_allow_html=True)
+    st.markdown("<p class='profile-role'>MBA-IT Candidate | Data and Business Analytics</p>", unsafe_allow_html=True)
     st.markdown("---")
-    
-    # Contact Info in Sidebar
-    st.markdown("### 📍 Contact")
-    # Using theme-aware text colors for links
+    st.markdown("### Contact")
     st.markdown(
         """
-        <div style='font-size: 0.9rem;'>
-            <div style='margin-bottom: 8px;'>
-                <a href='mailto:ganesh697todkari@gmail.com' style='text-decoration: none; color: inherit; opacity: 0.8;'>📧 Email Me</a>
-            </div>
-            <div style='margin-bottom: 8px;'>
-                <a href='https://linkedin.com/in/GaneshTodkari' style='text-decoration: none; color: inherit; opacity: 0.8;'>🔗 LinkedIn Profile</a>
-            </div>
-            <div>
-                <a href='https://github.com/GaneshTodkari' style='text-decoration: none; color: inherit; opacity: 0.8;'>💻 GitHub Portfolio</a>
-            </div>
+        <div style="font-size:0.92rem; line-height:1.7;">
+            <div><a href="mailto:ganesh697todkari@gmail.com" style="color:inherit; text-decoration:none;">Email</a></div>
+            <div><a href="https://linkedin.com/in/GaneshTodkari" style="color:inherit; text-decoration:none;">LinkedIn</a></div>
+            <div><a href="https://github.com/GaneshTodkari" style="color:inherit; text-decoration:none;">GitHub</a></div>
         </div>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
+hero_col, skills_col = st.columns([2, 1], gap="large")
 
-# --- MAIN CONTENT START ---
+with hero_col:
+    st.markdown(
+        """
+        <div class="hero-wrap">
+            <div class="hero-kicker">Portfolio Overview</div>
+            <div class="main-header">Turning Data Into Measurable Business Outcomes</div>
+            <p class="hero-subtitle">
+                I build analytics and machine learning solutions that improve decisions,
+                streamline operations, and create measurable impact.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-# --- HERO SECTION ---
-col1, col2 = st.columns([2, 1], gap="large")
+    st.markdown(
+        """
+        <div class="card">
+            <h3 style="margin-top:0; margin-bottom:0.8rem;">Professional Summary</h3>
+            <p>
+                I am a Computer Science graduate currently pursuing an MBA in IT, with a focus on
+                combining technical depth with business execution. My work spans data science,
+                business intelligence, and process optimization.
+            </p>
+            <p>
+                I specialize in translating complex datasets into clear decisions through
+                forecasting, fraud analytics, and operational workflow redesign.
+            </p>
+            <ul style="line-height:1.7; margin-bottom:0.4rem;">
+                <li><strong>Analytics Delivery:</strong> Built end-to-end solutions using Python, SQL, and Power BI.</li>
+                <li><strong>Business Impact:</strong> Designed automation initiatives that reduced cycle time and manual effort.</li>
+                <li><strong>Collaboration:</strong> Worked across technical and non-technical stakeholders to align outcomes with business goals.</li>
+            </ul>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-with col1:
-    # Used CSS class .text-medium for theme-aware secondary color
-    st.markdown("""
-    <div class="hero-header-container">
-        <div class="main-header">Turning Data into Strategy</div>
-        <p class="text-medium" style="font-size: 1.25rem; margin-bottom: 0; font-weight: 400;">
-            Bridging the gap between complex datasets and actionable business strategy.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Professional Story
-    st.markdown("""
-    <div class='info-box'>
-        <h3 style='color: var(--dark-blue); margin-top: 0; font-size: 1.4rem; display: flex; align-items: center; gap: 10px;'>
-            👋 About Me
-        </h3>
-        <p>
-        Hi, I’m <strong>Ganesh Todkari</strong>. I come from the culturally rich town of Tuljapur, where I completed my early schooling. My fascination with how things work led me to pursue a <strong>B.Sc in Computer Science</strong>, giving me a strong foundation in technical systems.
-        </p>
-        <p>
-        However, during my studies, I found myself asking a critical question: <em>'How does this technology actually help businesses achieve their goals?'</em>
-        </p>
-        <p>
-        That curiosity drove me to pursue an <strong>MBA in IT</strong> to nurture my managerial skills and bridge the gap between raw code and business strategy. I’ve turned this curiosity into action through hands-on projects:
-        </p>
-        <ul class="text-medium" style="line-height: 1.7; margin-bottom: 1rem;">
-            <li><strong>Business Analysis:</strong> Designed automated billing workflows for <strong>VybeRiders</strong>, bridging the gap between operations and tech.</li>
-            <li><strong>Data Science:</strong> Built <strong>Machine Learning models</strong> for Fraud Detection and Sales Forecasting using <strong>Python & SQL</strong>.</li>
-        </ul>
-        <p>
-        These experiences have defined my niche at the intersection of <strong>Data Science</strong> and <strong>Business Analysis</strong>.
-        </p>
-        <p class="text-medium" style='margin-bottom: 0; font-size: 0.95rem; border-top: 1px solid rgba(49, 51, 63, 0.1); padding-top: 1rem;'>
-        <strong>Offline:</strong> When I’m not working, you can find me reading Manga, watching Anime, or cheering for my favorite cricket team.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col2:
-    # Core Competencies
-    with st.container():
-        st.markdown("### 🎯 Core Competencies")
-        
-        st.markdown("**🧠 Data Science & ML**")
-        st.markdown("""
+with skills_col:
+    st.markdown("### Core Competencies")
+    st.markdown("**Data Science and Machine Learning**")
+    st.markdown(
+        """
         <span class='skill-tag'>Python</span>
         <span class='skill-tag'>XGBoost</span>
         <span class='skill-tag'>Scikit-Learn</span>
         <span class='skill-tag'>Random Forest</span>
-        <span class='skill-tag'>Regression & Classification</span>
-        <span class='skill-tag'>NLP & GenAI</span>
-        """, unsafe_allow_html=True)
-
-        st.write("") # Spacer
-
-        st.markdown("**📊 Data Analytics & BI**")
-        st.markdown("""
+        <span class='skill-tag'>NLP</span>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.write("")
+    st.markdown("**Analytics and BI**")
+    st.markdown(
+        """
         <span class='skill-tag'>SQL</span>
         <span class='skill-tag'>Power BI</span>
-        <span class='skill-tag'>Pandas & NumPy</span>
-        <span class='skill-tag'>Statistical Analysis</span>
+        <span class='skill-tag'>Pandas</span>
+        <span class='skill-tag'>NumPy</span>
         <span class='skill-tag'>EDA</span>
-        <span class='skill-tag'>ETL Pipelines</span>
-        """, unsafe_allow_html=True)
-    
-        st.write("") # Spacer
-
-        st.markdown("**💼 Business Analysis**")
-        st.markdown("""
-        <span class='skill-tag'>Requirement Gathering</span>
-        <span class='skill-tag'>Process Modeling (BPMN)</span>
+        <span class='skill-tag'>ETL</span>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.write("")
+    st.markdown("**Business Analysis**")
+    st.markdown(
+        """
+        <span class='skill-tag'>Requirement Analysis</span>
+        <span class='skill-tag'>BPMN</span>
         <span class='skill-tag'>Risk Analytics</span>
         <span class='skill-tag'>Stakeholder Management</span>
-        """, unsafe_allow_html=True)
-        
-        st.write("") # Spacer
-        st.write("") # Spacer
-        # Resume Download Button
-        if resume_path.exists():
-            with open(resume_path, "rb") as pdf_file:
-                st.download_button(
-                    label="📄 Download Master Resume",
-                    data=pdf_file,
-                    file_name="Ganesh_Todkari_Resume.pdf",
-                    mime="application/pdf",
-                    use_container_width=True,
-                    type="primary"
-                )
+        """,
+        unsafe_allow_html=True,
+    )
+    st.write("")
+    if resume_path.exists():
+        with open(resume_path, "rb") as pdf_file:
+            st.download_button(
+                label="Download Resume",
+                data=pdf_file,
+                file_name="Ganesh_Todkari_Resume.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                type="primary",
+            )
 
-
-
-# --- PROJECT PORTFOLIO SECTION ---
-st.write("")
 st.markdown('<div class="section-header">Featured Projects</div>', unsafe_allow_html=True)
 
-# Tabbed Project Layout
-tab_ds, tab_da, tab_ba = st.tabs(["🧬 Data Science & ML", "📊 Data Analytics & BI", "💼 Business Analysis & Strategy"])
+tab_ds, tab_da, tab_ba = st.tabs(
+    ["Data Science and ML", "Data Analytics and BI", "Business Analysis and Strategy"]
+)
 
 with tab_ds:
-    col1, col2, col3 = st.columns(3, gap="medium")
-    
+    ds_col1, ds_col2, ds_col3 = st.columns(3, gap="medium")
     projects_ds = [
         {
             "title": "Retail Demand Forecasting",
-            "subtitle": "XGBoost | Time Series",
-            "description": "Built ensemble models predicting daily sales for 1,115 stores, directly improving inventory planning accuracy.",
-            "metrics": "R²: 0.85 | Reduced Forecast Error by 15%",
-            "skills": ["Python", "XGBoost", "Time-Series", "Feature Engineering"],
-            "link": "pages/1_📈_Retail_Demand_Forecasting.py"
+            "subtitle": "XGBoost | Time Series Modeling",
+            "description": "Developed a forecasting pipeline for store-level demand prediction to improve replenishment planning.",
+            "metric_label": "Key Result",
+            "metric_value": "R²: 0.85 with 15% lower forecast error",
+            "skills": ["Python", "XGBoost", "Time Series", "Feature Engineering"],
+            "link": "pages/1_Retail_Demand_Forecasting.py",
         },
         {
             "title": "Credit Card Fraud Detection",
-            "subtitle": "Anomaly Detection | Imbalanced Data",
-            "description": "Solved the 'Needle in a Haystack' problem in financial data, identifying rare fraudulent transactions with high precision.",
-            "metrics": "AUC-ROC: 0.998",
-            "skills": ["Scikit-learn", "SMOTE", "XGBClassifier", "Risk Analytics"],
-            "link": "pages/2_🛡️_Credit_Card_Security_Analysis.py"
+            "subtitle": "Anomaly Detection | Imbalanced Learning",
+            "description": "Implemented a high-precision fraud detection workflow for low-incidence transaction monitoring.",
+            "metric_label": "Key Result",
+            "metric_value": "AUC-ROC: 0.998",
+            "skills": ["Scikit-Learn", "SMOTE", "XGBClassifier", "Risk Analytics"],
+            "link": "pages/2_Credit_Card_Security_Analysis.py",
         },
         {
-            "title": "Real Estate Pricing Engine",
-            "subtitle": "Regression Analysis",
-            "description": "Developed a valuation engine using location clustering and physical features to predict property prices accurately.",
-            "metrics": "Accuracy: 78%",
-            "skills": ['Python', 'K-Means Clustering', 'Predictive Modeling', 'EDA'],
-            "link": "pages/5_🏠_House_Price.py"
-        }
+            "title": "House Price Prediction Engine",
+            "subtitle": "Regression | Spatial Features",
+            "description": "Built a property valuation model using location intelligence and structured feature engineering.",
+            "metric_label": "Key Result",
+            "metric_value": "Model accuracy: 78%",
+            "skills": ["Python", "K-Means", "Predictive Modeling", "EDA"],
+            "link": "pages/5_House_Price.py",
+        },
+        {
+            "title": "Resume Match System",
+            "subtitle": "NLP | Semantic + Skill Matching",
+            "description": "Production-style resume-to-JD matching with semantic, skill, and experience scoring for hiring-fit analysis.",
+            "metric_label": "Model Output",
+            "metric_value": "Final score with matched and missing skill breakdown",
+            "skills": ["NLP", "Semantic Similarity", "Skill Extraction", "Information Retrieval"],
+            "link": "pages/6_Resume_Match_System.py",
+        },
     ]
-    
+
     for i, project in enumerate(projects_ds):
-        with [col1, col2, col3][i]:
-            st.markdown(f"""
-            <div class='project-card'>
-                <div>
-                    <h4 style='color: #0f4c75; margin-top: 0; margin-bottom: 5px;'>{project['title']}</h4>
-                    <p style='color: #1f77b4; font-weight: 600; font-size: 0.85rem; margin-bottom: 10px;'>{project['subtitle']}</p>
-                    <p style='font-size: 0.95rem;'>{project['description']}</p>
-                    <div style='background: var(--secondary-background-color); padding: 0.5rem 0.8rem; border-radius: 6px; margin: 1rem 0; font-size: 0.9rem;'>
-                        <strong style='color: #0f4c75;'>Key Metric:</strong> {project['metrics']}
+        with [ds_col1, ds_col2, ds_col3][i % 3]:
+            st.markdown(
+                f"""
+                <div class='project-card'>
+                    <div>
+                        <h4 class='card-title' style='margin-top:0; margin-bottom:0.2rem;'>{project['title']}</h4>
+                        <p class='card-subtitle'>{project['subtitle']}</p>
+                        <p style='font-size:0.94rem;'>{project['description']}</p>
+                        <div class='metric-box'><strong>{project['metric_label']}:</strong> {project['metric_value']}</div>
+                    </div>
+                    <div>
+                        {"".join([f"<span class='skill-tag'>{skill}</span>" for skill in project['skills']])}
                     </div>
                 </div>
-                <div>
-                    {"".join([f"<span class='skill-tag'>{skill}</span>" for skill in project['skills']])}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+                """,
+                unsafe_allow_html=True,
+            )
             st.write("")
-            if st.button("View Case Study", key=f"btn_ds_{i}"):
-                st.switch_page(project['link'])
+            if st.button("Open Case Study", key=f"btn_ds_{i}"):
+                st.switch_page(project["link"])
 
 with tab_da:
-    col1, col2 = st.columns(2, gap="medium")
-    
+    da_col1, da_col2 = st.columns(2, gap="medium")
     projects_da = [
         {
-            "title": "Insurance Fraud Dashboard",
-            "subtitle": "Power BI | Data Visualization",
-            "description": "Interactive dashboard analyzing $2M+ transactions to identify patterns, drastically reducing manual investigation time.",
-            "impact": "60% faster investigation workflows",
+            "title": "Insurance Fraud Intelligence Dashboard",
+            "subtitle": "Power BI | Risk Monitoring",
+            "description": "Designed an interactive dashboard to surface fraud patterns, investigator priorities, and risk segments.",
+            "metric_label": "Business Impact",
+            "metric_value": "Investigation workflow accelerated by 60%",
             "skills": ["Power BI", "DAX", "SQL", "Data Modeling"],
-            "link": "pages/3_📊_Insurance_Fraud_Claim_Analysis.py"
+            "link": "pages/3_Insurance_Fraud_Claim_Analysis.py",
         },
         {
-            "title": "Retail Sales & Inventory Analytics",
+            "title": "Retail Sales and Inventory Analytics",
             "subtitle": "SQL | Business Intelligence",
-            "description": "Comprehensive analysis identifying top products and regional trends leading to an optimized inventory strategy.",
-            "impact": "Identified 25% potential inventory cost reduction",
+            "description": "Analyzed regional and product-level trends to support inventory optimization and margin planning.",
+            "metric_label": "Business Impact",
+            "metric_value": "Identified 25% potential inventory cost reduction",
             "skills": ["SQL", "Power BI", "Excel", "Strategic Analysis"],
-            "link": "pages/4_🏬_Contoso_Retail.py"
-        }
+            "link": "pages/4_Contoso_Retail.py",
+        },
     ]
-    
+
     for i, project in enumerate(projects_da):
-        with [col1, col2][i]:
-            st.markdown(f"""
-            <div class='project-card'>
-                <div>
-                    <h4 style='color: #0f4c75; margin-top: 0; margin-bottom: 5px;'>{project['title']}</h4>
-                    <p style='color: #1f77b4; font-weight: 600; font-size: 0.85rem; margin-bottom: 10px;'>{project['subtitle']}</p>
-                    <p style='font-size: 0.95rem;'>{project['description']}</p>
-                    <div style='background: var(--secondary-background-color); padding: 0.5rem 0.8rem; border-radius: 6px; margin: 1rem 0; font-size: 0.9rem;'>
-                        <strong style='color: #0f4c75;'>Business Impact:</strong> {project['impact']}
+        with [da_col1, da_col2][i]:
+            st.markdown(
+                f"""
+                <div class='project-card'>
+                    <div>
+                        <h4 class='card-title' style='margin-top:0; margin-bottom:0.2rem;'>{project['title']}</h4>
+                        <p class='card-subtitle'>{project['subtitle']}</p>
+                        <p style='font-size:0.94rem;'>{project['description']}</p>
+                        <div class='metric-box'><strong>{project['metric_label']}:</strong> {project['metric_value']}</div>
+                    </div>
+                    <div>
+                        {"".join([f"<span class='skill-tag'>{skill}</span>" for skill in project['skills']])}
                     </div>
                 </div>
-                <div>
-                    {"".join([f"<span class='skill-tag'>{skill}</span>" for skill in project['skills']])}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+                """,
+                unsafe_allow_html=True,
+            )
             st.write("")
-            if st.button("View Dashboard", key=f"btn_da_{i}"):
-                st.switch_page(project['link'])
+            if st.button("Open Dashboard", key=f"btn_da_{i}"):
+                st.switch_page(project["link"])
 
 with tab_ba:
-    col1, col2 = st.columns(2, gap="medium")
-    
+    ba_col1, ba_col2 = st.columns(2, gap="medium")
     projects_ba = [
         {
             "title": "VybeRiders Process Automation",
-            "subtitle": "BPMN | Automation",
-            "description": "Mapped existing workflows and designed an automated billing system to replace manual checkout processes.",
-            "impact": "Reduced checkout time from 10 mins to 15 seconds (97% gain)",
+            "subtitle": "BPMN | Service Operations",
+            "description": "Mapped the checkout process and redesigned billing operations to eliminate manual handoffs.",
+            "metric_label": "Business Impact",
+            "metric_value": "Checkout time reduced from 10 minutes to 15 seconds",
             "skills": ["Process Mapping", "Requirement Gathering", "Automation Design"],
-            # Assuming you might have a page for this, otherwise remove button
-             "link": None 
-        },
-        
+            "link": None,
+        }
     ]
-    
+
     for i, project in enumerate(projects_ba):
-        with [col1, col2][i]:
-            st.markdown(f"""
-            <div class='project-card'>
-                <div>
-                    <h4 style='color: #0f4c75; margin-top: 0; margin-bottom: 5px;'>{project['title']}</h4>
-                    <p style='color: #1f77b4; font-weight: 600; font-size: 0.85rem; margin-bottom: 10px;'>{project['subtitle']}</p>
-                    <p style='font-size: 0.95rem;'>{project['description']}</p>
-                    <div style='background: var(--secondary-background-color); padding: 0.5rem 0.8rem; border-radius: 6px; margin: 1rem 0; font-size: 0.9rem;'>
-                        <strong style='color: #0f4c75;'>Business Impact:</strong> {project['impact']}
+        with [ba_col1, ba_col2][i]:
+            st.markdown(
+                f"""
+                <div class='project-card'>
+                    <div>
+                        <h4 class='card-title' style='margin-top:0; margin-bottom:0.2rem;'>{project['title']}</h4>
+                        <p class='card-subtitle'>{project['subtitle']}</p>
+                        <p style='font-size:0.94rem;'>{project['description']}</p>
+                        <div class='metric-box'><strong>{project['metric_label']}:</strong> {project['metric_value']}</div>
+                    </div>
+                    <div>
+                        {"".join([f"<span class='skill-tag'>{skill}</span>" for skill in project['skills']])}
                     </div>
                 </div>
-                <div>
-                    {"".join([f"<span class='skill-tag'>{skill}</span>" for skill in project['skills']])}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+                """,
+                unsafe_allow_html=True,
+            )
             st.write("")
-            if project.get('link'):
-                 if st.button("View Details", key=f"btn_ba_{i}"):
-                    st.switch_page(project['link'])
+            if project.get("link"):
+                if st.button("Open Details", key=f"btn_ba_{i}"):
+                    st.switch_page(project["link"])
             else:
-                 st.button("Details Coming Soon", key=f"btn_ba_{i}", disabled=True)
+                st.button("Detailed Case Study Coming Soon", key=f"btn_ba_{i}", disabled=True)
 
-# --- FOOTER ---
 st.markdown("---")
-# Using .text-medium class for footer text to adapt to theme
-st.markdown("""
-<div class="text-medium" style='text-align: center; padding: 2rem 0;'>
-    <h4 style='color: #0f4c75; margin-bottom: 0.5rem;'>Let's Connect</h4>
-    <p style='margin-bottom: 1.5rem; font-size: 0.9rem;'>Open to full-time opportunities in Data Science & Analytics.</p>
-    <div style='margin: 1rem 0; font-size: 1.1rem;'>
-        <a href='mailto:ganesh697todkari@email.com' style='margin: 0 1.5rem; color: #1f77b4; text-decoration: none; font-weight: 600;'>📧 Email</a>
-        <a href='https://linkedin.com/in/GaneshTodkari' style='margin: 0 1.5rem; color: #1f77b4; text-decoration: none; font-weight: 600;'>🔗 LinkedIn</a>
-        <a href='https://github.com/GaneshTodkari' style='margin: 0 1.5rem; color: #1f77b4; text-decoration: none; font-weight: 600;'>💻 GitHub</a>
+st.markdown(
+    """
+    <div class="footer-wrap">
+        <h4 style="margin-bottom:0.25rem;">Open to Analytics and Data Science Opportunities</h4>
+        <p style="margin-bottom:0.35rem;">Interested in roles focused on business impact, decision science, and automation.</p>
+        <div class="footer-links">
+            <a href="mailto:ganesh697todkari@gmail.com" class="footer-link">Email</a>
+            <a href="https://linkedin.com/in/GaneshTodkari" class="footer-link">LinkedIn</a>
+            <a href="https://github.com/GaneshTodkari" class="footer-link">GitHub</a>
+        </div>
+        <p style="font-size:0.75rem; opacity:0.68;">Copyright 2026 Ganesh Todkari</p>
     </div>
-    <p style='margin-top: 2rem; font-size: 0.75rem; opacity: 0.7;'>© 2023 Ganesh Todkari • Built with Python & Streamlit</p>
-</div>
-""", unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True,
+)
