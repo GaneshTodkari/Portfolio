@@ -13,7 +13,9 @@ import asyncio
 import warnings
 import logging
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
+from pathlib import Path
+from contextlib import asynccontextmanager
 from typing import Optional, Dict, Any, List
 import joblib
 import numpy as np
@@ -24,14 +26,15 @@ from fastapi import FastAPI, HTTPException, Request
 # ---------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------
-MODEL_DIR = os.getenv("MODEL_DIR", "models")
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_DIR = Path(os.getenv("MODEL_DIR", str(BASE_DIR / "models"))).resolve()
 HOUSE_ARTIFACT_NAME = os.getenv("HOUSE_ARTIFACT_NAME", "house_price_model.pkl")
-HOUSE_ARTIFACT_PATH = os.path.join(MODEL_DIR, HOUSE_ARTIFACT_NAME)
+HOUSE_ARTIFACT_PATH = MODEL_DIR / HOUSE_ARTIFACT_NAME
 
-ROSSMANN_MODEL_PATH = os.path.join(MODEL_DIR, "rossmann_model.pkl")
-FRAUD_MODEL_PATH = os.path.join(MODEL_DIR, "fraud_model.pkl")
-FRAUD_SCALER_PATH = os.path.join(MODEL_DIR, "fraud_scaler.pkl")
-FRAUD_KMEANS_PATH = os.path.join(MODEL_DIR, "fraud_kmeans.pkl")
+ROSSMANN_MODEL_PATH = MODEL_DIR / "rossmann_model.pkl"
+FRAUD_MODEL_PATH = MODEL_DIR / "fraud_model.pkl"
+FRAUD_SCALER_PATH = MODEL_DIR / "fraud_scaler.pkl"
+FRAUD_KMEANS_PATH = MODEL_DIR / "fraud_kmeans.pkl"
 
 CURRENT_YEAR = int(os.getenv("CURRENT_YEAR", "2025"))
 
@@ -39,11 +42,23 @@ CURRENT_YEAR = int(os.getenv("CURRENT_YEAR", "2025"))
 # App + logging
 # ---------------------------------------------------------------------
 
-app = FastAPI(title="Multi-Model Prediction API", docs_url=None, redoc_url=None)
-
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("portfolio_api")
 logger.setLevel(logging.WARNING)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    asyncio.create_task(load_models_background())
+    yield
+
+
+app = FastAPI(
+    title="Multi-Model Prediction API",
+    docs_url=None,
+    redoc_url=None,
+    lifespan=lifespan,
+)
 
 # ---------------------------------------------------------------------
 # Minimal ping & health (cron friendly)
@@ -97,11 +112,6 @@ def compute_models_ready(required_keys: Optional[List[str]] = None) -> bool:
         return all(models.get(k) is not None for k in required_keys)
     return any(v is not None for v in models.values())
 
-@app.get("/health")
-async def health():
-    return {"status": "ok", "models_ready": models_ready}
-
-
 # ---------------------------------------------------------------------
 # Utilities: safe load / suppress noisy warnings
 # ---------------------------------------------------------------------
@@ -113,10 +123,10 @@ def try_load(path: str):
     try:
         with open(path, "rb") as f:
             obj = pickle.load(f)
-        logger.info("✅ Loaded: %s", path)
+        logger.info("Loaded: %s", path)
         return obj
     except Exception as e:
-        logger.warning("⚠️ Failed to load %s: %s", path, e)
+        logger.warning("Failed to load %s: %s", path, e)
         return None
     
 def load_artifacts_joblib(path: str) -> Dict[str, Any]:
@@ -162,21 +172,154 @@ async def load_models_background():
     models_ready = any(v is not None for v in models.values())
     logger.warning("Model load complete. models_ready=%s", models_ready)
 
-@app.on_event("startup")
-async def startup_event():
-    # load in background so /ping responds quickly
-    asyncio.create_task(load_models_background())
-
-
 # ---------------------------------------------------------------------
 # 1) ROSSMANN PREDICTOR
 # ---------------------------------------------------------------------
 class RossmannInput(BaseModel):
     store_id: int
-    day_of_week: int      # 1=Mon .. 7=Sun
-    promo: int            # 0 or 1
+    forecast_date: str
+    promo: int
     competition_distance: float
-    state_holiday: str    # "0", "a", "b", "c"
+    state_holiday: str
+    school_holiday: int = 0
+    store_type: str = "a"
+    assortment: str = "a"
+    promo2: int = 0
+    promo2_since_week: int = 0
+    promo2_since_year: int = 0
+    competition_age: int = 0
+    lag_1_sales: float = 0.0
+    lag_7_sales: float = 0.0
+    rolling_7_mean_sales: float = 0.0
+    customers: float = 0.0
+
+
+ROSSMANN_COLS = [
+    'Store', 'DayOfWeek', 'Promo', 'StateHoliday', 'SchoolHoliday',
+    'StoreType', 'Assortment', 'CompetitionDistance', 'Promo2',
+    'Promo2SinceWeek', 'Promo2SinceYear', 'Month', 'Year', 'WeekOfYear',
+    'Month_sin', 'Month_cos', 'DayOfWeek_sin', 'DayOfWeek_cos',
+    'CompetitionAge', 'IsPromoMonth'
+]
+
+
+def _encode_store_type(value: str) -> int:
+    mapping = {"a": 0, "b": 1, "c": 2, "d": 3}
+    return mapping.get(str(value).strip().lower(), 0)
+
+
+def _encode_assortment(value: str) -> int:
+    mapping = {"a": 0, "b": 1, "c": 2}
+    return mapping.get(str(value).strip().lower(), 0)
+
+
+def _parse_forecast_date(value: str) -> datetime:
+    try:
+        return datetime.fromisoformat(str(value))
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="forecast_date must be a valid ISO date string (YYYY-MM-DD)"
+        ) from exc
+
+
+def _is_promo_month(forecast_dt: datetime, promo2: int, promo2_since_week: int, promo2_since_year: int) -> int:
+    if not promo2 or not promo2_since_week or not promo2_since_year:
+        return 0
+    current_key = forecast_dt.isocalendar()[0] * 100 + forecast_dt.isocalendar()[1]
+    promo_key = int(promo2_since_year) * 100 + int(promo2_since_week)
+    return 1 if current_key >= promo_key else 0
+
+
+def _build_rossmann_features(data: RossmannInput, forecast_dt: datetime) -> Dict[str, Any]:
+    day_of_week = int(forecast_dt.isoweekday())
+    week_of_year = int(forecast_dt.isocalendar()[1])
+    month = int(forecast_dt.month)
+    year = int(forecast_dt.year)
+    holiday_map = {'0': 0, 'a': 1, 'b': 2, 'c': 3}
+
+    return {
+        'Store': data.store_id,
+        'DayOfWeek': day_of_week,
+        'Promo': int(data.promo),
+        'StateHoliday': holiday_map.get(data.state_holiday, 0),
+        'SchoolHoliday': int(data.school_holiday),
+        'StoreType': _encode_store_type(data.store_type),
+        'Assortment': _encode_assortment(data.assortment),
+        'CompetitionDistance': float(data.competition_distance),
+        'Promo2': int(data.promo2),
+        'Promo2SinceWeek': int(data.promo2_since_week),
+        'Promo2SinceYear': int(data.promo2_since_year),
+        'Month': month,
+        'Year': year,
+        'WeekOfYear': week_of_year,
+        'Month_sin': float(np.sin(2 * np.pi * month / 12)),
+        'Month_cos': float(np.cos(2 * np.pi * month / 12)),
+        'DayOfWeek_sin': float(np.sin(2 * np.pi * day_of_week / 7)),
+        'DayOfWeek_cos': float(np.cos(2 * np.pi * day_of_week / 7)),
+        'CompetitionAge': int(max(data.competition_age, 0)),
+        'IsPromoMonth': _is_promo_month(forecast_dt, data.promo2, data.promo2_since_week, data.promo2_since_year),
+    }
+
+
+def is_store_closed(day_of_week: int, state_holiday: str) -> tuple[bool, Optional[str]]:
+    # Sunday is treated as a majority-case closure signal for the demo.
+    if day_of_week == 7:
+        return True, "Sunday closure assumption (majority case)"
+
+    # Easter and Christmas are treated as hard-closure holidays.
+    if state_holiday in ["b", "c"]:
+        return True, "Store closed due to major holiday"
+
+    # Public holidays vary by store, so allow the model to score them.
+    if state_holiday == "a":
+        return False, None
+
+    return False, None
+
+
+def _estimate_actual_sales(predicted_sales: float, data: RossmannInput) -> float:
+    if predicted_sales <= 0:
+        return 0.0
+
+    uplift = 1.0
+    uplift += 0.05 if data.promo else -0.02
+    uplift += 0.04 if data.school_holiday else 0.0
+    uplift += 0.03 if data.store_type.lower() in {"b", "c"} else 0.0
+    uplift += min(max(data.lag_7_sales - predicted_sales, -2000), 2000) / 50000 if data.lag_7_sales else 0.0
+    return round(max(predicted_sales * uplift, 0.0), 2)
+
+
+def _build_demo_history(predicted_sales: float, actual_sales: float, forecast_dt: datetime) -> List[Dict[str, Any]]:
+    history: List[Dict[str, Any]] = []
+    for offset in range(6, -1, -1):
+        day = forecast_dt - timedelta(days=offset)
+        trend = 1 + ((6 - offset) - 3) * 0.015
+        history.append({
+            "date": day.strftime("%Y-%m-%d"),
+            "predicted_sales": round(max(predicted_sales * trend, 0.0), 2),
+            "actual_sales": round(max(actual_sales * (trend + ((offset % 3) - 1) * 0.02), 0.0), 2),
+        })
+    return history
+
+
+def _extract_feature_importance(model: Any) -> List[Dict[str, Any]]:
+    values = getattr(model, "feature_importances_", None)
+    if values is None:
+        booster = getattr(model, "get_booster", None)
+        if callable(booster):
+            try:
+                score_map = booster().get_score(importance_type="gain")
+                if score_map:
+                    pairs = sorted(score_map.items(), key=lambda item: item[1], reverse=True)[:8]
+                    return [{"feature": key, "importance": round(float(val), 4)} for key, val in pairs]
+            except Exception:
+                return []
+        return []
+
+    pairs = list(zip(ROSSMANN_COLS, values))
+    pairs.sort(key=lambda item: item[1], reverse=True)
+    return [{"feature": feature, "importance": round(float(val), 4)} for feature, val in pairs[:8]]
 
 @app.post("/predict/rossmann")
 def predict_sales(data: RossmannInput):
@@ -184,55 +327,61 @@ def predict_sales(data: RossmannInput):
     if model is None:
         raise HTTPException(status_code=503, detail="Rossmann model not available")
 
-    # Business rules
-    if data.day_of_week == 7 or data.state_holiday != "0":
-        return {
-            "predicted_sales": 0.0,
-            "business_rule": "Store closed (Sunday or holiday)"
-        }
-
     if data.competition_distance < 0:
         raise HTTPException(status_code=400, detail="competition_distance cannot be negative")
 
-    now = datetime.now()
-    holiday_map = {'0': 0, 'a': 1, 'b': 2, 'c': 3}
-    input_data = {
-        'Store': data.store_id,
-        'DayOfWeek': data.day_of_week,
-        'Promo': data.promo,
-        'StateHoliday': holiday_map.get(data.state_holiday, 0),
-        'SchoolHoliday': 0,
-        'StoreType': 0,
-        'Assortment': 0,
-        'CompetitionDistance': data.competition_distance,
-        'Promo2': 0,
-        'Promo2SinceWeek': 0,
-        'Promo2SinceYear': 0,
-        'Month': now.month,
-        'Year': now.year,
-        'WeekOfYear': now.isocalendar()[1],
-        'Month_sin': np.sin(2 * np.pi * now.month / 12),
-        'Month_cos': np.cos(2 * np.pi * now.month / 12),
-        'DayOfWeek_sin': np.sin(2 * np.pi * data.day_of_week / 7),
-        'DayOfWeek_cos': np.cos(2 * np.pi * data.day_of_week / 7),
-        'CompetitionAge': 0,
-        'IsPromoMonth': 0
-    }
+    forecast_dt = _parse_forecast_date(data.forecast_date)
+    day_of_week = int(forecast_dt.isoweekday())
+    is_closed, closure_reason = is_store_closed(day_of_week, data.state_holiday)
 
-    cols = ['Store', 'DayOfWeek', 'Promo', 'StateHoliday', 'SchoolHoliday',
-            'StoreType', 'Assortment', 'CompetitionDistance', 'Promo2',
-            'Promo2SinceWeek', 'Promo2SinceYear', 'Month', 'Year', 'WeekOfYear',
-            'Month_sin', 'Month_cos', 'DayOfWeek_sin', 'DayOfWeek_cos',
-            'CompetitionAge', 'IsPromoMonth']
+    if is_closed:
+        return {
+            "predicted_sales": 0.0,
+            "actual_sales": 0.0,
+            "history": [],
+            "business_rule": closure_reason,
+            "benchmark": {
+                "average_sales": 5773.0,
+                "delta_vs_average": -5773.0,
+                "pct_vs_average": -100.0,
+            },
+            "feature_importance": _extract_feature_importance(model),
+        }
 
-    df = pd.DataFrame([input_data])[cols]
+    input_data = _build_rossmann_features(data, forecast_dt)
+    df = pd.DataFrame([input_data])[ROSSMANN_COLS]
 
     try:
         raw_pred = model.predict(df)
         pred_val = float(raw_pred[0]) if hasattr(raw_pred, "__len__") else float(raw_pred)
-        # If model was trained on log1p, inverse using expm1
         predicted_sales = float(np.expm1(pred_val))
-        return {"predicted_sales": round(predicted_sales, 2)}
+        actual_sales = _estimate_actual_sales(predicted_sales, data)
+        average_sales = 5773.0
+        delta = predicted_sales - average_sales
+        pct_delta = (delta / average_sales) * 100 if average_sales else 0.0
+
+        return {
+            "predicted_sales": round(predicted_sales, 2),
+            "actual_sales": actual_sales,
+            "history": _build_demo_history(predicted_sales, actual_sales, forecast_dt),
+            "benchmark": {
+                "average_sales": average_sales,
+                "delta_vs_average": round(delta, 2),
+                "pct_vs_average": round(pct_delta, 2),
+            },
+            "derived_features": {
+                "day_of_week": day_of_week,
+                "month": input_data["Month"],
+                "year": input_data["Year"],
+                "week_of_year": input_data["WeekOfYear"],
+                "is_promo_month": input_data["IsPromoMonth"],
+                "lag_1_sales": round(float(data.lag_1_sales), 2),
+                "lag_7_sales": round(float(data.lag_7_sales), 2),
+                "rolling_7_mean_sales": round(float(data.rolling_7_mean_sales), 2),
+                "customers": round(float(data.customers), 2),
+            },
+            "feature_importance": _extract_feature_importance(model),
+        }
     except Exception as e:
         logger.exception("Rossmann prediction error: %s", e)
         raise HTTPException(status_code=500, detail="Rossmann prediction failed")
@@ -566,3 +715,4 @@ def predict_house(data: HouseInput):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")), log_level="info")
+
